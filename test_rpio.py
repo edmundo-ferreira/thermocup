@@ -59,7 +59,6 @@ def call_C3(gpio_id,val):
 
 
 
-
 def call_P4(gpio,val):
 	logging.warning("P4-7")
         RPIO.del_interrupt_callback(7)
