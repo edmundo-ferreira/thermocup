@@ -8,65 +8,48 @@ import time
 import serial
 
 
-try:
-	ser=serial.Serial('/dev/ttyACM0',9600)
-except:
-	print "No Arduino Connected"
 tb=None
 
 
 RPIO.setwarnings(False)
-logging.basicConfig(filename='example.log',filemode='w',
-		format="%(levelname)s| %(asctime)-15s | %(message)s",
-		level=logging.WARNING)
-
+logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w',format="%(levelname)s| %(asctime)-15s | %(message)s",level=logging.WARNING)
 
 
 title='TermoCup 2013'
 title_style='QLabel { font-size: 60pt; color:gray;}'
 timer_style='QLabel {font-size:40pt; color:red;}'
-table_header_style='QHeaderView { font-size: 13pt; font-weight: bold; background-color:gray;}'
+rfid_style='QLabel {font-size:16pt; color:blue;}'
+table_header_style='QHeaderView {font-size: 13pt;  background-color:gray;}'
 table_item_style='QTreeWidget, QTreeView{font-size:12pt; color:black}'
 
 
-
 def call_P1(gpio,val):
-	logging.warning("P1-4")
        	ex.start_fcn1() 
-	RPIO.del_interrupt_callback(4)
-	RPIO.add_interrupt_callback(25,call_C1,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
 	ex.update()
 
 def call_C1(gpio_id,val):
-	logging.warning("C1-25")
        	ex.stop_fcn1() 
-	RPIO.del_interrupt_callback(25)
-	RPIO.add_interrupt_callback(4,call_P1,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
 	ex.update()
 
 def call_P2(gpio,val):
-	logging.warning("P2-17")
 	ex.start_fcn2() 
 	RPIO.del_interrupt_callback(17)
 	RPIO.add_interrupt_callback(18,call_C2,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
 	ex.update()
 
 def call_C2(gpio_id,val):
-	logging.warning("C2-18")
 	ex.stop_fcn2() 
 	RPIO.del_interrupt_callback(18)
 	RPIO.add_interrupt_callback(17,call_P2,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
 	ex.update()
 
 def call_P3(gpio,val):
-	logging.warning("P3-21")
 	ex.start_fcn3() 
 	RPIO.del_interrupt_callback(21)
 	RPIO.add_interrupt_callback(22,call_C3,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
 	ex.update()
 
 def call_C3(gpio_id,val):
-	logging.warning("C3-22")
 	ex.stop_fcn3() 
 	RPIO.del_interrupt_callback(22)
 	RPIO.add_interrupt_callback(21,call_P3,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
@@ -74,20 +57,16 @@ def call_C3(gpio_id,val):
 
 
 def call_P4(gpio,val):
-	logging.warning("P4-7")
 	ex.start_fcn4() 
 	RPIO.del_interrupt_callback(7)
 	RPIO.add_interrupt_callback(8,call_C4,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
 	ex.update()
 
 def call_C4(gpio_id,val):
-	logging.warning("C4-8")
 	ex.stop_fcn4() 
 	RPIO.del_interrupt_callback(8)
 	RPIO.add_interrupt_callback(7,call_P4,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
 	ex.update()
-
-
 
 
 
@@ -99,58 +78,102 @@ RPIO.wait_for_interrupts(threaded=True)
 
 
 
-
 class Example(QtGui.QWidget):
-    
-    def __init__(self):
-        super(Example, self).__init__() 
-        self.initUI()
-        
-    def initUI(self):
+    def __init__(self,parent=None):
+	QtGui.QWidget.__init__(self,parent)
+
         screen = QtGui.QDesktopWidget().screenGeometry() #get screen size
+
+	self.reader_thd0=SerialReader('/dev/ttyACM0')
+        self.reader_thd0.start() 
+
+	self.reader_thd1=SerialReader('/dev/ttyACM1')
+        self.reader_thd1.start() 
+
+        QtCore.QObject.connect(self.reader_thd0,QtCore.SIGNAL("rfid_detect(QString)"), self.rfid_detect)       
+
 
         #clock1 thread
         self.clock1 = QtCore.QTimer()
         self.clock1.timeout.connect(self.getElapTime1)
-
-       #clock2 thread
-	self.clock2 = QtCore.QTimer()
-	self.clock2.timeout.connect(self.getelaptime2)
-
-       #clock3 thread
-	self.clock3 = QtCore.QTimer()
-	self.clock3.timeout.connect(self.getelaptime3)
-
-       #clock4 thread
-	self.clock4 = QtCore.QTimer()
-	self.clock4.timeout.connect(self.getelaptime4)
+        #clock1 thread
+        self.clock2 = QtCore.QTimer()
+        self.clock2.timeout.connect(self.getElapTime2)
+	#clock1 thread
+        self.clock3 = QtCore.QTimer()
+        self.clock3.timeout.connect(self.getElapTime3)
+	#clock1 thread
+        self.clock4 = QtCore.QTimer()
+        self.clock4.timeout.connect(self.getElapTime4)
 
 
-	#timer1 label
+	#rfid_clocks
+	self.rfid1_clk= QtCore.QTimer()
+        self.rfid1_clk.timeout.connect(self.clear_rfid1)
+	
+
+
+	self.timers=list()
+	for i in range(0,1):
+		self.timers.append(QtGui.QLabel('0:0000',self))
+        	self.timers[i].setStyleSheet(timer_style)
+        	self.timers[i].setFixedWidth(300)
+        	self.timers[i].setAlignment(QtCore.Qt.AlignRight)
+        	self.timers[i].move(screen.width()/2-700+i*300,220)
+
+
+
         self.timer1=QtGui.QLabel('0:0000',self)
         self.timer1.setStyleSheet(timer_style)
         self.timer1.setFixedWidth(300)
         self.timer1.setAlignment(QtCore.Qt.AlignRight)
-        self.timer1.move(screen.width()/2-600,220)
-        	#timer1 label
+        self.timer1.move(screen.width()/2-700,220)
+       	#timer2 label
         self.timer2=QtGui.QLabel('0:0000',self)
         self.timer2.setStyleSheet(timer_style)
         self.timer2.setFixedWidth(300)
         self.timer2.setAlignment(QtCore.Qt.AlignRight)
-        self.timer2.move(screen.width()/2-300,220)
-        	#timer1 label
+        self.timer2.move(screen.width()/2-400,220)
+       	#timer3 label
         self.timer3=QtGui.QLabel('0:0000',self)
         self.timer3.setStyleSheet(timer_style)
         self.timer3.setFixedWidth(300)
         self.timer3.setAlignment(QtCore.Qt.AlignRight)
-        self.timer3.move(screen.width()/2+000,220)
-        	#timer1 label
-        self.timer3=QtGui.QLabel('0:0000',self)
-        self.timer3.setStyleSheet(timer_style)
-        self.timer3.setFixedWidth(300)
-        self.timer3.setAlignment(QtCore.Qt.AlignRight)
-        self.timer3.move(screen.width()/2+300,220)
+        self.timer3.move(screen.width()/2-100,220)
+        #timer4 label
+        self.timer4=QtGui.QLabel('0:0000',self)
+        self.timer4.setStyleSheet(timer_style)
+        self.timer4.setFixedWidth(300)
+        self.timer4.setAlignment(QtCore.Qt.AlignRight)
+        self.timer4.move(screen.width()/2+200,220)
         
+	#rfid1 label
+        self.rfid1=QtGui.QLabel('',self)
+        self.rfid1.setStyleSheet(rfid_style)
+        self.rfid1.setFixedWidth(300)
+        self.rfid1.setAlignment(QtCore.Qt.AlignRight)
+        self.rfid1.move(screen.width()/2-700,300)
+	#rfid1 label
+        self.rfid2=QtGui.QLabel('',self)
+        self.rfid2.setStyleSheet(rfid_style)
+        self.rfid2.setFixedWidth(300)
+        self.rfid2.setAlignment(QtCore.Qt.AlignRight)
+        self.rfid2.move(screen.width()/2-400,300)
+
+
+       	#timer control flags 
+	self.timer1_running=False
+        self.timer2_running=False
+        self.timer3_running=False
+        self.timer4_running=False
+
+	self.timer1_enable=False
+	self.timer2_enable=False
+
+	self.rfid1_enable=True
+	self.rfid2_enable=True
+
+
         #title label
         self.title= QtGui.QLabel(title, self)
         self.title.setStyleSheet(title_style)
@@ -158,21 +181,15 @@ class Example(QtGui.QWidget):
         self.title.setAlignment(QtCore.Qt.AlignRight)
         self.title.move(screen.width()/2-350,30)
 
-        #ist_logo
-        ist_logo = QtGui.QLabel(self)
-        ist_logo.setPixmap( QtGui.QPixmap("ist_logo.png").scaled(280,150, QtCore.Qt.KeepAspectRatio))
-        ist_logo.move(30,30)
+	#ist_log#o
+	#ist_logo = QtGui.QLabel(self)
+	#ist_logo.setPixmap( QtGui.QPixmap("ist_logo.png").scaled(280,150, QtCore.Qt.KeepAspectRatio))
+	#ist_logo.move(30,30)
         
-
-        self.timer1_running=False
-        self.timer2_running=False
-        self.timer3_running=False
-        self.timer4_running=False
-        # #cienciaviva_logo
-        # cienciaviva_logo= QtGui.QLabel(self)
-        # cienciaviva_logo.setPixmap( QtGui.QPixmap("cienciaviva_logo.tif").scaled(200,160, QtCore.Qt.KeepAspectRatio))
-        # cienciaviva_logo.move(screen.width()-250,30)
-
+	 #cienciaviva_logo
+	#cienciaviva_logo= QtGui.QLabel(self)
+	#cienciaviva_logo.setPixmap( QtGui.QPixmap("cienciaviva_logo.tif").scaled(200,160, QtCore.Qt.KeepAspectRatio))
+	#cienciaviva_logo.move(screen.width()-250,30)
 
 
         ##shortcut start
@@ -238,9 +255,22 @@ class Example(QtGui.QWidget):
         #self.setStyleSheet("QWidget { background-color:white }") #set background
         self.showFullScreen() #show fullscreen
  
- 
-        
-    # edit the table
+	
+    def rfid_detect(self, tag_id):
+	    if self.rfid1_enable==True:
+		    self.rfid1_clk.start(8000) #give it 30 seconds
+		    self.rfid1.setText("TagId=%s"%tag_id)
+		    self.timer1_enable=True
+		    self.rfid1_enable=False
+
+
+    def clear_rfid1(self):
+	self.rfid1_enable=True
+	self.rfid1.setText('')
+	self.rfid1_enable=True
+	self.timer1_enable=False
+
+	# edit the table
     def edit_rank_tree(self,item, index):
         print index
         if not (index==0 or index==1):
@@ -249,88 +279,87 @@ class Example(QtGui.QWidget):
             item.setFlags(QtCore.Qt.ItemIsSelectable |  QtCore.Qt.ItemIsEnabled)
 
 
+    def getElapTime(self,clock_id,t0):
+	self.timer[clock_id].setText("%d:%04d"%(elap_1.seconds,t0.microseconds/100))
+
+
     #get ellapsed time     
     def getElapTime1(self):
         elap_1= datetime.datetime.now()-self.t1_0
-        self.timer1.setText("%d:%04d"%(elap_1.seconds,elap_1.microseconds))
- 
+        self.timer1.setText("%d:%04d"%(elap_1.seconds,elap_1.microseconds/100))
     # start function
     def start_fcn1(self):
-        if self.timer1_running==False:
-             #starting the clock
+        if self.timer1_running==False and self.timer1_enable==True:
             self.clock1.start(1)
-            self.t1_0=datetime.datetime.now()
+	    self.t1_0=datetime.datetime.now()
+            RPIO.del_interrupt_callback(4)
+	    RPIO.add_interrupt_callback(25,call_C1,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
+	    self.rfid1_clk.stop()
             self.timer1_running=True
-        
+	    self.rfid1_enable=False
     #stop function
     def stop_fcn1(self):
         if self.timer1_running==True:
             self.clock1.stop()
-            self.timer1_running=False
+            RPIO.del_interrupt_callback(25)
+	    RPIO.add_interrupt_callback(4,call_P1,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=tb)
+	    self.rfid1_enable=True
+	    self.timer1_enable=False
+	    self.timer1_running=False
+	    time.sleep(4)
+	    self.rfid1.setText('')
+	    self.timer1.setText('0:0000')
 
-     #get ellapsed time     
-    def getelaptime2(self):
+
+	#get ellapsed time     
+    def getElapTime2(self):
         elap_2= datetime.datetime.now()-self.t2_0
-        self.timer2.settext("%d:%04d"%(elap_2.seconds,elap_2.microseconds))
-        
-            
+        self.timer2.setText("%d:%04d"%(elap_2.seconds,elap_2.microseconds/100))
     # start function
     def start_fcn2(self):
         if self.timer2_running==False:
-             #starting the clock
             self.clock2.start(1)
             self.t2_0=datetime.datetime.now()
             self.timer2_running=True
-
     #stop function
     def stop_fcn2(self):
         if self.timer2_running==True:
             self.clock2.stop()
             self.timer2_running=False
- 
-
-      #get ellapsed time     
-    def getelaptime3(self):
+    #get ellapsed time     
+    def getElapTime3(self):
         elap_3= datetime.datetime.now()-self.t3_0
-        self.timer3.settext("%d:%04d"%(elap_3.seconds,elap_3.microseconds))
-        
-            
+        self.timer3.setText("%d:%04d"%(elap_3.seconds,elap_3.microseconds/100))
     # start function
     def start_fcn3(self):
         if self.timer3_running==False:
-             #starting the clock
             self.clock3.start(1)
             self.t3_0=datetime.datetime.now()
             self.timer3_running=True
-
     #stop function
     def stop_fcn3(self):
         if self.timer3_running==True:
             self.clock3.stop()
             self.timer3_running=False
-        
-        
-     #get ellapsed time     
-    def getelaptime4(self):
+       
+
+    #get ellapsed time     
+    def getElapTime4(self):
         elap_4= datetime.datetime.now()-self.t4_0
-        self.timer4.settext("%d:%04d"%(elap_4.seconds,elap_4.microseconds))
-        
-            
+        self.timer4.setText("%d:%04d"%(elap_4.seconds,elap_4.microseconds/100))
     # start function
     def start_fcn4(self):
         if self.timer4_running==False:
-             #starting the clock
             self.clock4.start(1)
             self.t4_0=datetime.datetime.now()
-            self.timer4_running=true
-
+            self.timer4_running=True
     #stop function
     def stop_fcn4(self):
         if self.timer4_running==True:
             self.clock4.stop()
-            self.timer4_running=false
+            self.timer4_running=False
  
-       
+
 
 
     #request password
@@ -342,19 +371,57 @@ class Example(QtGui.QWidget):
     #close safeguard
     def closeEvent(self, event):
         reply = QtGui.QMessageBox.question(self, 'Message', "Are you sure to quit?", QtGui.QMessageBox.Yes |  QtGui.QMessageBox.No, QtGui.QMessageBox.No)
-        RPIO.stop_waiting_for_interrupts()
-	RPIO.cleanup()
-
+        
 	if reply == QtGui.QMessageBox.Yes:
-            event.accept()
+		self.reader_thd0.terminate()
+		self.reader_thd1.terminate()
+		RPIO.stop_waiting_for_interrupts()
+		RPIO.stop_waiting_for_interrupts()
+		RPIO.cleanup()
+		event.accept()
         else:
-            event.ignore()     
+		event.ignore()     
 
 
+############################  SERIAL THREAD  ##########################
+class SerialReader(QtCore.QThread):
+    def __init__(self,in_dev):
+	QtCore.QThread.__init__(self)
+        self.con_flag=False
+	self.device_name=in_dev	
 
-
-
+    def run(self):
+	while True:
+		while self.con_flag==False:
+			try:
+				self.ser=serial.Serial(self.device_name,9600)
+				print "%s connected"%self.device_name
+				self.con_flag=True
+			except serial.SerialException:
+				#print "no connection"
+				time.sleep(0.5)
+		try:
+			merda=self.ser.readline().strip('\n')
+			self.emit(QtCore.SIGNAL("rfid_detect(QString)"),merda)
+			print merda
+		except serial.SerialException:
+			print "disconnected"
+			self.ser.close()	
+			self.con_flag=False	
 	
+    
+    def terminate(self):
+        try:
+	    self.ser.close()
+            QtCore.QThread.terminate(self)
+            print "Stoping SerialRead Thread"    
+        except:
+            print "Unable to close SerialRead Thread"
+
+
+
+
+
 
 
 if __name__ == '__main__':
