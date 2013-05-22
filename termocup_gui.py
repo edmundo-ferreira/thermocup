@@ -168,7 +168,7 @@ class Track():
 			self.t_0=datetime.datetime.now()
 			self.timer_clk.start(1)
 			RPIO.del_interrupt_callback(self.gpio_b)
-			RPIO.add_interrupt_callback(self.gpio_e,self.stopClk,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=self.tb)
+			RPIO.add_interrupt_callback(self.gpio_e,self.stopClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=self.tb)
 			self.rfid_clk.stop()
 			self.timer_running=True
 			self.rfid_enable=False
@@ -180,13 +180,13 @@ class Track():
 			self.timer_clk.stop()
 			RPIO.del_interrupt_callback(self.gpio_e)
 			self.gui_data.update()	
-			self.rfid_enable=True
-			self.timer_enable=False
-			self.timer_running=False
 			time.sleep(6)
 			self.rfid_label.setText('')
 			self.timer_label.setText('0:0000')
-	
+			self.rfid_enable=True
+			self.timer_enable=False
+			self.timer_running=False
+
 
 	def setRFID(self,tag_id):
 		if self.rfid_enable==True:
@@ -194,7 +194,7 @@ class Track():
 			self.rfid_label.setText("TagId=%s"%tag_id)
 			self.rfid_enable=False
 			self.timer_enable=True
-			RPIO.add_interrupt_callback(self.gpio_b,self.startClk,edge='falling',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=self.tb)
+			RPIO.add_interrupt_callback(self.gpio_b,self.startClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=self.tb)
 
 
 	def clearRFID(self):

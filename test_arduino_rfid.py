@@ -1,9 +1,11 @@
 # Robust programm to detect and read arduino rfid connections
 # It enables auto connections and detects non-presence
-
-
 import time 
 import serial
+import csv
+
+f=open('tag_lookup.csv','wb')
+my_dic={}
 
 
 con_flag=False
@@ -19,7 +21,11 @@ try:
 				time.sleep(0.5)
 		
 		try:
-			print ser.readline().strip('\n')
+			print "Pass the RFID card:"
+			tag_in=ser.readline().strip('\n').split('#')[1]
+			print tag_in
+			card_n=raw_input("Insert Team Number:")
+			my_dic[tag_in]=card_n	
 		except serial.SerialException:
 			print "disconnected"
 			ser.close()	
@@ -27,7 +33,13 @@ try:
 except KeyboardInterrupt:
 	if con_flag==True:
 		ser.close()
-		print "\nClosing Serial Port"
-		print "Goodby"
-	else:
-		print "\nGoodby"
+	
+	print "\nClosing Serial Port"
+
+
+
+for tag in my_dic:
+	print tag
+
+
+
