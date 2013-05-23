@@ -4,42 +4,59 @@ import time
 import serial
 import csv
 
-f=open('tag_lookup.csv','wb')
+f=open('/home/pi/Desktop/thermocup/tag_lookup.txt','r')
+f2=open('/home/pi/Desktop/thermocup/tag_lookup2.txt','w')
 my_dic={}
+csv_writer=csv.writer(f2)
+csv_reader=csv.reader(f)
 
 
-con_flag=False
-try:
-	while True:
-		while con_flag==False:
+w_flag=False
+
+
+for row in csv_reader:
+	try:
+		my_dic[row[0]]=row[1]
+	except:
+		print "fodeu"
+
+print my_dic
+
+
+
+if w_flag==True:
+	card_number=87
+	con_flag=False
+	try:
+		while True:
+			while con_flag==False:
+				try:
+					ser=serial.Serial('/dev/ttyACM0',9600)
+					print "connected"
+					con_flag=True
+				except serial.SerialException:
+					#print "no connection"
+					time.sleep(0.5)
+			
 			try:
-				ser=serial.Serial('/dev/ttyACM0',9600)
-				print "connected"
-				con_flag=True
+				print "------------------------------------"
+				print "Pass card: %d"%card_number
+				tag_in=ser.readline().split('#')[1].strip('\r\n')
+				my_dic[tag_in]=card_number
+				card_number=card_number+1
 			except serial.SerialException:
-				#print "no connection"
-				time.sleep(0.5)
+				print "disconnected"
+				ser.close()	
+				con_flag=False	
+	except KeyboardInterrupt:
+		if con_flag==True:
+			ser.close()
 		
-		try:
-			print "Pass the RFID card:"
-			tag_in=ser.readline().strip('\n').split('#')[1]
-			print tag_in
-			card_n=raw_input("Insert Team Number:")
-			my_dic[tag_in]=card_n	
-		except serial.SerialException:
-			print "disconnected"
-			ser.close()	
-			con_flag=False	
-except KeyboardInterrupt:
-	if con_flag==True:
-		ser.close()
-	
 	print "\nClosing Serial Port"
+	
+	
+for item in my_dic:
+	csv_writer.writerow([item, my_dic[item]])
+	
 
-
-
-for tag in my_dic:
-	print tag
-
-
-
+f.close()

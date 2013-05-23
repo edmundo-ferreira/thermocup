@@ -6,6 +6,24 @@ import RPIO
 import logging
 import time
 import serial
+import csv
+
+f=open('/home/pi/Desktop/thermocup/tag_lookup.txt','r+b')
+my_dic={}
+csv_reader=csv.reader(f)
+
+for row in csv_reader:
+	try:
+		my_dic[row[0]]=row[1]
+	except:
+		print "Error reading dictionary"
+
+print my_dic
+print len(my_dic)
+
+f.close()
+
+sys.exit()
 
 logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w',format="%(levelname)s|%(asctime)-15s|%(message)s",level=logging.WARNING)
 
@@ -81,12 +99,10 @@ class MainGui(QtGui.QWidget):
 		self.rank_tree.sortItems(0,QtCore.Qt.AscendingOrder)
 		self.rank_tree.setAlternatingRowColors(True);
 	   
-		nteam=range(1,151)
-		random.shuffle(nteam)
-		for i in range(1,151):
+		for i in range(1,len(my_dic)):
 			aux=QtGui.QTreeWidgetItem(self.rank_tree)
 			aux.setData(0,QtCore.Qt.DisplayRole, i)
-			aux.setData(1,QtCore.Qt.DisplayRole, nteam[i-1])
+			aux.setData(1,QtCore.Qt.DisplayRole, my_dic[i])
 			aux.setData(2,QtCore.Qt.DisplayRole, random.uniform(0,300))
 			aux.setData(3,QtCore.Qt.DisplayRole, random.uniform(0,20))
 			aux.setData(4,QtCore.Qt.DisplayRole, random.uniform(0,20))
@@ -230,9 +246,9 @@ class SerialReader(QtCore.QThread):
 					#print "no connection"
 					time.sleep(0.5)
 			try:
-				in_channel, in_tag =self.ser.readline().strip('\n').split('#')	
+				in_channel, in_tag =self.ser.readline().strip('\r\n').split('#')	
 				print in_channel,in_tag	
-				self.gui_data.track_list[int(in_channel)-1].setRFID(in_tag)
+				self.gui_data.track_list[int(in_channel)-1].setRFID(my_dic[in_tag])
 			except serial.SerialException:
 				print "disconnected"
 				self.ser.close()	
