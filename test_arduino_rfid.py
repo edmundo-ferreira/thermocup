@@ -5,9 +5,9 @@ import serial
 import csv
 
 f=open('/home/pi/Desktop/thermocup/tag_lookup.txt','r')
-f2=open('/home/pi/Desktop/thermocup/tag_lookup2.txt','w')
+#f2=open('/home/pi/Desktop/thermocup/tag_lookup2.txt','w')
 my_dic={}
-csv_writer=csv.writer(f2)
+csv_writer=csv.writer(f)
 csv_reader=csv.reader(f)
 
 
@@ -22,7 +22,7 @@ for row in csv_reader:
 
 print my_dic
 
-
+f.seek(0)
 
 if w_flag==True:
 	card_number=87

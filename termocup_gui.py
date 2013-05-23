@@ -8,7 +8,7 @@ import time
 import serial
 import csv
 
-f=open('/home/pi/Desktop/thermocup/tag_lookup.txt','r+b')
+f=open('/home/pi/Desktop/thermocup/tag_lookup.txt','r')
 my_dic={}
 csv_reader=csv.reader(f)
 
@@ -17,13 +17,10 @@ for row in csv_reader:
 		my_dic[row[0]]=row[1]
 	except:
 		print "Error reading dictionary"
-
-print my_dic
-print len(my_dic)
-
 f.close()
 
-sys.exit()
+
+data={}
 
 logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w',format="%(levelname)s|%(asctime)-15s|%(message)s",level=logging.WARNING)
 
@@ -31,17 +28,17 @@ logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w'
 title='TermoCup 2013'
 title_style='QLabel { font-size: 60pt; color:gray;}'
 timer_style='QLabel {font-size:40pt; color:red;}'
-rfid_style='QLabel {font-size:16pt; color:blue;}'
+rfid_style='QLabel {font-size:25pt; color:blue;}'
 table_header_style='QHeaderView {font-size: 13pt;  background-color:gray;}'
 table_item_style='QTreeWidget, QTreeView{font-size:12pt; color:black}'
 
 RPIO.wait_for_interrupts(threaded=True)
 RPIO.setwarnings(False)
 	
-
-
 gpio_b_list=[4]
 gpio_e_list=[25]
+
+
 class MainGui(QtGui.QWidget):
 	def __init__(self,parent=None):
 		QtGui.QWidget.__init__(self,parent)
@@ -76,53 +73,37 @@ class MainGui(QtGui.QWidget):
 		#cienciaviva_logo.move(screen.width()-250,30)
 
 		#ranking table
-		self.rank_tree= QtGui.QTreeWidget(self)
-		self.rank_tree. setHeaderLabels(['Ranking','Team Number','Time (s)','Classificacao (val)','Bonus (val)'])
-		self.rank_tree.setFixedWidth(1000)
-		self.rank_tree.setFixedHeight(600)
-		self.rank_tree.move(screen.width()/2-500,400)
-	    
-		self.rank_tree.setColumnWidth(0,200)
-		self.rank_tree.header().setResizeMode(0,QtGui.QHeaderView.Fixed)
-		self.rank_tree.setColumnWidth(1,200)
-		self.rank_tree.header().setResizeMode(1,QtGui.QHeaderView.Fixed)
-		self.rank_tree.setColumnWidth(2,200)
-		self.rank_tree.header().setResizeMode(2,QtGui.QHeaderView.Fixed)
-		self.rank_tree.setColumnWidth(3,200)
-		self.rank_tree.header().setResizeMode(3,QtGui.QHeaderView.Fixed)
-		#self.rank_tree.setColumnWidth(4,200)
-		self.rank_tree.header().setResizeMode(4,QtGui.QHeaderView.Fixed)
-		self.rank_tree.header().setDefaultAlignment(QtCore.Qt.AlignCenter) #alingment of header tags
-		self.rank_tree.header().setStyleSheet(table_header_style)
-		self.rank_tree.setStyleSheet(table_item_style)
-		self.rank_tree.setSortingEnabled(True) 
-		self.rank_tree.sortItems(0,QtCore.Qt.AscendingOrder)
-		self.rank_tree.setAlternatingRowColors(True);
-	   
-		for i in range(1,len(my_dic)):
-			aux=QtGui.QTreeWidgetItem(self.rank_tree)
-			aux.setData(0,QtCore.Qt.DisplayRole, i)
-			aux.setData(1,QtCore.Qt.DisplayRole, my_dic[i])
-			aux.setData(2,QtCore.Qt.DisplayRole, random.uniform(0,300))
-			aux.setData(3,QtCore.Qt.DisplayRole, random.uniform(0,20))
-			aux.setData(4,QtCore.Qt.DisplayRole, random.uniform(0,20))
-			for j in range(5):
-				    aux.setTextAlignment(j,QtCore.Qt.AlignCenter)
+		self.tree_widget= QtGui.QTreeWidget(self)
+		self.tree_widget. setHeaderLabels(['Ranking','Team Number','Time (s)'])
+		self.tree_widget.setFixedWidth(800)
+		self.tree_widget.setFixedHeight(500)
+		self.tree_widget.move(screen.width()/2-400,400)
+		self.tree_widget.setColumnWidth(0,200)
+		self.tree_widget.header().setResizeMode(0,QtGui.QHeaderView.Fixed)
+		self.tree_widget.setColumnWidth(1,200)
+		self.tree_widget.header().setResizeMode(1,QtGui.QHeaderView.Fixed)
+		#self.tree_widget.setColumnWidth(2,200)
+		self.tree_widget.header().setResizeMode(2,QtGui.QHeaderView.Fixed)
+		
+		self.tree_widget.header().setDefaultAlignment(QtCore.Qt.AlignCenter) #alingment of header tags
+		self.tree_widget.header().setStyleSheet(table_header_style)
+		self.tree_widget.setStyleSheet(table_item_style)
+		self.tree_widget.setSortingEnabled(True) 
+		self.tree_widget.sortItems(2,QtCore.Qt.AscendingOrder)
 
- 
-	 
-		self.rank_tree.itemDoubleClicked.connect(self.edit_rank_tree)      
+		self.tree_widget.setAlternatingRowColors(True);
+
+		self.tree_widget.itemDoubleClicked.connect(self.edit_tree_widget)      
 	  
-            ##self.setStyleSheet("QWidget { background-color:white }") #set background
-		#self.showFullScreen() #show fullscreen
-		self.show()
+            #self.setStyleSheet("QWidget { background-color:white }") #set background
+		self.showFullScreen() #show fullscreen
 
 	#edit the table
-	def edit_rank_tree(self,item, index):
+	def edit_tree_widget(self,item, index):
 		print index
 		if not (index==0 or index==1):
 			item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)           
-			self.rank_tree.editItem(item, index)       
+			self.tree_widget.editItem(item, index)       
 			item.setFlags(QtCore.Qt.ItemIsSelectable |  QtCore.Qt.ItemIsEnabled) 
 
 	#close safeguard
@@ -169,13 +150,13 @@ class Track():
 		self.rfid_label=QtGui.QLabel('',self.gui_data)
 		self.rfid_label.setStyleSheet(rfid_style)
 		self.rfid_label.setFixedWidth(300)
-		self.rfid_label.setAlignment(QtCore.Qt.AlignRight)
-		self.rfid_label.move(pos_x,300)
+		self.rfid_label.setAlignment(QtCore.Qt.AlignCenter)
+		self.rfid_label.move(0,300)
 	
 	#get ellapsed time     
 	def setTimerClk(self):
-		t_lap= datetime.datetime.now()-self.t_0
-		self.timer_label.setText("%d:%04d"%(t_lap.seconds,t_lap.microseconds/100))
+		self.t_lap= datetime.datetime.now()-self.t_0
+		self.timer_label.setText("%d:%04d"%(self.t_lap.seconds,self.t_lap.microseconds/100))
 
 
 	def startClk(self,gpio,val):
@@ -196,6 +177,7 @@ class Track():
 			self.timer_clk.stop()
 			RPIO.del_interrupt_callback(self.gpio_e)
 			self.gui_data.update()	
+			self.sortTree()	
 			time.sleep(6)
 			self.rfid_label.setText('')
 			self.timer_label.setText('0:0000')
@@ -203,11 +185,32 @@ class Track():
 			self.timer_enable=False
 			self.timer_running=False
 
+	
+	def sortTree(self):
+		self.float_timer=float("%d.%04d"%(self.t_lap.seconds,self.t_lap.microseconds/100))
+		
+		if data.get(self.tag_id)==None or self.float_timer<data.get(self.tag_id):
+			data[self.tag_id]=self.float_timer
+
+	
+		self.setTree()
+
+
+	def setTree(self):
+		self.gui_data.tree_widget.clear() 
+		for row in data:
+			aux=QtGui.QTreeWidgetItem(self.gui_data.tree_widget)
+			aux.setData(0,QtCore.Qt.DisplayRole,1)
+			aux.setData(1,QtCore.Qt.DisplayRole,row)
+			aux.setData(2,QtCore.Qt.DisplayRole,data[row])
+
+
 
 	def setRFID(self,tag_id):
 		if self.rfid_enable==True:
+			self.tag_id=tag_id	
 			self.rfid_clk.start(8000)
-			self.rfid_label.setText("TagId=%s"%tag_id)
+			self.rfid_label.setText("%s"%tag_id)
 			self.rfid_enable=False
 			self.timer_enable=True
 			RPIO.add_interrupt_callback(self.gpio_b,self.startClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=self.tb)
@@ -247,8 +250,9 @@ class SerialReader(QtCore.QThread):
 					time.sleep(0.5)
 			try:
 				in_channel, in_tag =self.ser.readline().strip('\r\n').split('#')	
-				print in_channel,in_tag	
-				self.gui_data.track_list[int(in_channel)-1].setRFID(my_dic[in_tag])
+				print in_channel,in_tag,my_dic.get(in_tag)
+				if not my_dic.get(in_tag)==None:
+				        self.gui_data.track_list[int(in_channel)-1].setRFID(my_dic[in_tag])
 			except serial.SerialException:
 				print "disconnected"
 				self.ser.close()	
