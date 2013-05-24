@@ -8,18 +8,19 @@ import time
 import serial
 import csv
 
-f=open('/home/pi/Desktop/thermocup/tag_lookup.txt','r')
+fdic=open('/home/pi/Desktop/thermocup/tag_lookup.txt','r')
 my_dic={}
-csv_reader=csv.reader(f)
-
+csv_reader=csv.reader(fdic)
 for row in csv_reader:
 	try:
 		my_dic[row[0]]=row[1]
 	except:
 		print "Error reading dictionary"
-f.close()
+fdic.close()
 
-data={}
+
+
+
 
 logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w',format="%(levelname)s|%(asctime)-15s|%(message)s",level=logging.WARNING)
 
@@ -88,14 +89,28 @@ class MainGui(QtGui.QWidget):
 		self.tree_widget.header().setDefaultAlignment(QtCore.Qt.AlignCenter) #alingment of header tags
 		self.tree_widget.header().setStyleSheet(table_header_style)
 		self.tree_widget.setStyleSheet(table_item_style)
-		self.tree_widget.setSortingEnabled(True) 
-		self.tree_widget.sortItems(2,QtCore.Qt.AscendingOrder)
+		#self.tree_widget.setSortingEnabled(True) 
+		#self.tree_widget.sortItems(2,QtCore.Qt.AscendingOrder)
 
 		self.tree_widget.setAlternatingRowColors(True);
+		
+		
+		fdata=open('/home/pi/Desktop/thermocup/data/temp.txt','r')
+     		for row in fdata:
+			aux=row.strip('\n').split(',')
+			new_item=QtGui.QTreeWidgetItem(self.tree_widget)
+			new_item.setData(0,QtCore.Qt.DisplayRole,int(aux[0]))
+			new_item.setData(1,QtCore.Qt.DisplayRole,int(aux[1]))
+			new_item.setData(2,QtCore.Qt.DisplayRole,float(aux[2]))
+
+		fdata.close()
+		#sys.exit()
+
 		#self.tree_widget.itemDoubleClicked.connect(self.edit_tree_widget)      
 	  
             #self.setStyleSheet("QWidget { background-color:white }") #set background
 		self.showFullScreen() #show fullscreen
+
 
 	#edit the table
 	#def edit_tree_widget(self,item, index):
@@ -186,36 +201,55 @@ class Track():
 		self.t_lap= datetime.datetime.now()-self.t_0
 		self.timer_label.setText("%d:%03d"%(self.t_lap.seconds,self.t_lap.microseconds/1000))
 
-	#disable track and if timer was running kill's interrupt
+	def resetMaster(self):
+		if self.timer_running==True:
+			RPIO.del_interrupt_callback(self.gpio_e)
+			self.timer_clk.stop()
+		self.rfid_label.setText('')	
+		self.timer_label.setText('0:000')	
+		self.rfid_enable=True
+		self.timer_enable=False
+		self.timer_running=False
+
+#disable track and if timer was running kill's interrupt
 	def disableTrack(self):
 		self.track_clk.stop()
 		if self.timer_running==False:
 			  RPIO.del_interrupt_callback(self.gpio_b)
 		self.rfid_label.setText('')	
 		self.timer_label.setText('0:000')	
+		self.sortTree()	
 		self.rfid_enable=True
 		self.timer_enable=False
 		self.timer_running=False
 ##################################################################################
 
 
-
-
-     # def sortTree(self):
-		##FUCKED UP SIMULTANEOUS DATA ACCESS
-		#self.float_timer=float("%d.%04d"%(self.t_lap.seconds,self.t_lap.microseconds/100))
-		#if data.get(self.tag_id)==None or self.float_timer<data.get(self.tag_id):
-			#data[self.tag_id]=self.float_timer
-		#self.gui_data.tree_widget.clear() 
-		#for row in data:
-			#aux=QtGui.QTreeWidgetItem(self.gui_data.tree_widget)
-			#aux.setData(0,QtCore.Qt.DisplayRole,1)
-			#aux.setData(1,QtCore.Qt.DisplayRole,row)
-			#aux.setData(2,QtCore.Qt.DisplayRole,data[row])
-
-
-
-
+	def sortTree(self):
+		self.float_timer=float("%d.%03d"%(self.t_lap.seconds,self.t_lap.microseconds/1000))
+		match_item=self.gui_data.tree_widget.findItems(self.tag_id,QtCore.Qt.MatchExactly,1)
+		
+		fdata=open('/home/pi/Desktop/thermocup/data/temp.txt','w')
+		if len(match_item)==0:
+			new_item=QtGui.QTreeWidgetItem(self.gui_data.tree_widget)
+			new_item.setData(1,QtCore.Qt.DisplayRole,self.tag_id)
+			new_item.setData(2,QtCore.Qt.DisplayRole,self.float_timer)
+			self.gui_data.tree_widget.sortItems(2,0)
+			for i in range(0,self.gui_data.tree_widget.topLevelItemCount()):
+				aux=self.gui_data.tree_widget.topLevelItem(i)		
+				aux.setData(0,QtCore.Qt.DisplayRole,i+1)
+				fdata.write("%d,%d,%.03f\n"%(int(aux.text(0)),int(aux.text(1)),float(aux.text(2))))
+		elif self.float_timer<float(match_item[0].text(2)):
+     #             new_sub_item=QtGui.QTreeWidgetItem(match_item[0])
+			#new_sub_item.setData(1,QtCore.QtDisplayRole,float(match_item[0].text(1)))
+			#new_sub_item.setData(2,QtCore.QtDisplayRole,float(match_item[0].text(2)))
+			match_item[0].setData(2,QtCore.Qt.DisplayRole,self.float_timer)
+			self.gui_data.tree_widget.sortItems(2,0)
+			for i in range(0,self.gui_data.tree_widget.topLevelItemCount()):
+				aux=self.gui_data.tree_widget.topLevelItem(i)		
+				aux.setData(0,QtCore.Qt.DisplayRole,i+1)
+				fdata.write("%d,%d,%.03f\n"%(int(aux.text(0)),int(aux.text(1)),float(aux.text(2))))
+		fdata.close() 
 
 
 ############################  SERIAL THREAD  ####################################
@@ -241,8 +275,10 @@ class SerialReader(QtCore.QThread):
 				in_number=my_dic.get(in_tag)
 				in_channel=int(in_channel)-1	
 				if not in_number==None and in_channel<len(self.gui_data.track_list):
-					#print in_channel,in_tag, in_number 
-				 	self.gui_data.track_list[in_channel].enableTrack(in_number)
+					if in_number=='MASTER':
+						  self.gui_data.track_list[in_channel].resetMaster()					
+					else:
+						  self.gui_data.track_list[in_channel].enableTrack(in_number)
 			except serial.SerialException:
 				print "disconnected"
 				self.ser.close()	
