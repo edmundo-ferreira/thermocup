@@ -19,7 +19,6 @@ for row in csv_reader:
 		print "Error reading dictionary"
 f.close()
 
-
 data={}
 
 logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w',format="%(levelname)s|%(asctime)-15s|%(message)s",level=logging.WARNING)
@@ -35,8 +34,8 @@ table_item_style='QTreeWidget, QTreeView{font-size:12pt; color:black}'
 RPIO.wait_for_interrupts(threaded=True)
 RPIO.setwarnings(False)
 	
-gpio_b_list=[4]
-gpio_e_list=[25]
+gpio_b_list=[4,0,17,22]
+gpio_e_list=[25,1,18,23]
 
 
 class MainGui(QtGui.QWidget):
@@ -46,15 +45,16 @@ class MainGui(QtGui.QWidget):
 		
 		#list of reader threads	
 		self.reader_list=list()
-		for i in range(0,1):
-			self.reader_list.append(SerialReader(self,'/dev/ttyACM%s'%i))
+		self.reader_list.append(SerialReader(self,'/dev/ttyACM%s'%0))
+		self.reader_list.append(SerialReader(self,'/dev/ttyACM%s'%1))
+		self.reader_list.append(SerialReader(self,'/dev/ttyUSB%s'%0))
 
+	
 		#list of track classes
 		self.track_list=list()
-		for i in range(0,1):
+		for i in range(0,len(gpio_b_list)):
 			self.track_list.append(Track(self,gpio_b_list[i],gpio_e_list[i],screen.width()/2-700+i*300))
-		
-  
+
 		#title label
 		self.title= QtGui.QLabel(title, self)
 		self.title.setStyleSheet(title_style)
@@ -92,19 +92,18 @@ class MainGui(QtGui.QWidget):
 		self.tree_widget.sortItems(2,QtCore.Qt.AscendingOrder)
 
 		self.tree_widget.setAlternatingRowColors(True);
-
-		self.tree_widget.itemDoubleClicked.connect(self.edit_tree_widget)      
+		#self.tree_widget.itemDoubleClicked.connect(self.edit_tree_widget)      
 	  
             #self.setStyleSheet("QWidget { background-color:white }") #set background
 		self.showFullScreen() #show fullscreen
 
 	#edit the table
-	def edit_tree_widget(self,item, index):
-		print index
-		if not (index==0 or index==1):
-			item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)           
-			self.tree_widget.editItem(item, index)       
-			item.setFlags(QtCore.Qt.ItemIsSelectable |  QtCore.Qt.ItemIsEnabled) 
+	#def edit_tree_widget(self,item, index):
+		#print index
+		#if not (index==0 or index==1):
+			#item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)           
+			#self.tree_widget.editItem(item, index)       
+		    #  item.setFlags(QtCore.Qt.ItemIsSelectable |  QtCore.Qt.ItemIsEnabled) 
 
 	#close safeguard
 	def closeEvent(self, event):
@@ -127,7 +126,6 @@ class Track():
 		self.gui_data=gui_data	
 		self.gpio_b=gpio_b
 		self.gpio_e=gpio_e
-		self.tb=None
 		#timer control flags 
 		self.timer_running=False
 		self.timer_enable=False
@@ -136,12 +134,12 @@ class Track():
 		self.timer_clk= QtCore.QTimer()
 		self.timer_clk.timeout.connect(self.setTimerClk)
 	
-		#rfid_clocks
-		self.rfid_clk= QtCore.QTimer()
-		self.rfid_clk.timeout.connect(self.clearRFID)
-	  
+		#track clock
+		self.track_clk= QtCore.QTimer()
+		self.track_clk.timeout.connect(self.disableTrack)
+
 		#timer label		
-		self.timer_label=QtGui.QLabel('0:0000',self.gui_data)
+		self.timer_label=QtGui.QLabel('0:000',self.gui_data)
 		self.timer_label.setStyleSheet(timer_style)
 		self.timer_label.setFixedWidth(300)
 		self.timer_label.setAlignment(QtCore.Qt.AlignRight)
@@ -151,79 +149,70 @@ class Track():
 		self.rfid_label.setStyleSheet(rfid_style)
 		self.rfid_label.setFixedWidth(300)
 		self.rfid_label.setAlignment(QtCore.Qt.AlignCenter)
-		self.rfid_label.move(0,300)
+		self.rfid_label.move(pos_x+60,300)
 	
-	#get ellapsed time     
-	def setTimerClk(self):
-		self.t_lap= datetime.datetime.now()-self.t_0
-		self.timer_label.setText("%d:%04d"%(self.t_lap.seconds,self.t_lap.microseconds/100))
-
-
-	def startClk(self,gpio,val):
-		print gpio
-		if self.timer_running==False and self.timer_enable==True:
-			self.t_0=datetime.datetime.now()
-			self.timer_clk.start(1)
-			RPIO.del_interrupt_callback(self.gpio_b)
-			RPIO.add_interrupt_callback(self.gpio_e,self.stopClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=self.tb)
-			self.rfid_clk.stop()
-			self.timer_running=True
-			self.rfid_enable=False
-			self.gui_data.update()
-
-	def stopClk(self,gpio,val):
-		print gpio
-		if self.timer_running==True:
-			self.timer_clk.stop()
-			RPIO.del_interrupt_callback(self.gpio_e)
-			self.gui_data.update()	
-			self.sortTree()	
-			time.sleep(6)
-			self.rfid_label.setText('')
-			self.timer_label.setText('0:0000')
-			self.rfid_enable=True
-			self.timer_enable=False
-			self.timer_running=False
-
 	
-	def sortTree(self):
-		self.float_timer=float("%d.%04d"%(self.t_lap.seconds,self.t_lap.microseconds/100))
-		
-		if data.get(self.tag_id)==None or self.float_timer<data.get(self.tag_id):
-			data[self.tag_id]=self.float_timer
-
-	
-		self.setTree()
-
-
-	def setTree(self):
-		self.gui_data.tree_widget.clear() 
-		for row in data:
-			aux=QtGui.QTreeWidgetItem(self.gui_data.tree_widget)
-			aux.setData(0,QtCore.Qt.DisplayRole,1)
-			aux.setData(1,QtCore.Qt.DisplayRole,row)
-			aux.setData(2,QtCore.Qt.DisplayRole,data[row])
-
-
-
-	def setRFID(self,tag_id):
+	def enableTrack(self,tag_id):
+		print tag_id
 		if self.rfid_enable==True:
 			self.tag_id=tag_id	
-			self.rfid_clk.start(8000)
+			self.track_clk.start(30000)
 			self.rfid_label.setText("%s"%tag_id)
 			self.rfid_enable=False
 			self.timer_enable=True
-			RPIO.add_interrupt_callback(self.gpio_b,self.startClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=self.tb)
+			RPIO.add_interrupt_callback(self.gpio_b,self.startClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=None)
 
+	def startClk(self,gpio,val):
+		print gpio	
+		if self.timer_running==False and self.timer_enable==True:
+			RPIO.del_interrupt_callback(self.gpio_b)
+			self.t_0=datetime.datetime.now()
+			self.timer_clk.start(5)
+			self.track_clk.stop()
+			self.timer_running=True
+			self.rfid_enable=False
+			self.gui_data.update()
+			RPIO.add_interrupt_callback(self.gpio_e,self.stopClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=None)
 
-	def clearRFID(self):
-		RPIO.del_interrupt_callback(self.gpio_b)
+	def stopClk(self,gpio,val):
+		print gpio	
+		if self.timer_running==True: 
+			RPIO.del_interrupt_callback(self.gpio_e)
+			self.timer_clk.stop()
+			self.track_clk.start(8000)			
+		
+	#get and set ellapsed time     
+	def setTimerClk(self):
+		self.t_lap= datetime.datetime.now()-self.t_0
+		self.timer_label.setText("%d:%03d"%(self.t_lap.seconds,self.t_lap.microseconds/1000))
+
+	#disable track and if timer was running kill's interrupt
+	def disableTrack(self):
+		self.track_clk.stop()
+		if self.timer_running==False:
+			  RPIO.del_interrupt_callback(self.gpio_b)
 		self.rfid_label.setText('')	
+		self.timer_label.setText('0:000')	
 		self.rfid_enable=True
 		self.timer_enable=False
 		self.timer_running=False
-		self.rfid_clk.stop()
 ##################################################################################
+
+
+
+
+     # def sortTree(self):
+		##FUCKED UP SIMULTANEOUS DATA ACCESS
+		#self.float_timer=float("%d.%04d"%(self.t_lap.seconds,self.t_lap.microseconds/100))
+		#if data.get(self.tag_id)==None or self.float_timer<data.get(self.tag_id):
+			#data[self.tag_id]=self.float_timer
+		#self.gui_data.tree_widget.clear() 
+		#for row in data:
+			#aux=QtGui.QTreeWidgetItem(self.gui_data.tree_widget)
+			#aux.setData(0,QtCore.Qt.DisplayRole,1)
+			#aux.setData(1,QtCore.Qt.DisplayRole,row)
+			#aux.setData(2,QtCore.Qt.DisplayRole,data[row])
+
 
 
 
@@ -233,26 +222,27 @@ class Track():
 class SerialReader(QtCore.QThread):
 	def __init__(self,gui_data,in_dev):
 		QtCore.QThread.__init__(self)
+		self.gui_data=gui_data
 		self.con_flag=False
 		self.device_name=in_dev
 		self.start()
-		self.gui_data=gui_data
 
 	def run(self):
 		while True:
 			while self.con_flag==False:
 				try:
 					self.ser=serial.Serial(self.device_name,9600)
-					print "%s connected"%self.device_name
+					print "%s connected\n"%self.device_name
 					self.con_flag=True
 				except serial.SerialException:
-					#print "no connection"
-					time.sleep(0.5)
+					time.sleep(1)
 			try:
-				in_channel, in_tag =self.ser.readline().strip('\r\n').split('#')	
-				print in_channel,in_tag,my_dic.get(in_tag)
-				if not my_dic.get(in_tag)==None:
-				        self.gui_data.track_list[int(in_channel)-1].setRFID(my_dic[in_tag])
+				in_channel, in_tag =self.ser.readline().strip('\r\n').strip(' ').split('#')
+				in_number=my_dic.get(in_tag)
+				in_channel=int(in_channel)-1	
+				if not in_number==None and in_channel<len(self.gui_data.track_list):
+					#print in_channel,in_tag, in_number 
+				 	self.gui_data.track_list[in_channel].enableTrack(in_number)
 			except serial.SerialException:
 				print "disconnected"
 				self.ser.close()	
@@ -262,9 +252,9 @@ class SerialReader(QtCore.QThread):
 		try:
 			self.ser.close()
 			QtCore.QThread.terminate(self)
-			print "Stoping SerialRead Thread"    
+			print "Stoping SerialRead Thread %s"%self.device_name    
 		except:
-			print "Unable to close SerialRead Thread"
+			print "Unable to close SerialRead Thread %s"%self.device_name
 ##################################################################################
 
 
