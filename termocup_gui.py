@@ -18,12 +18,7 @@ for row in csv_reader:
 		print "Error reading dictionary"
 fdic.close()
 
-
-
-
-
 logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w',format="%(levelname)s|%(asctime)-15s|%(message)s",level=logging.WARNING)
-
 
 title='TermoCup 2013'
 title_style='QLabel { font-size: 60pt; color:gray;}'
@@ -35,8 +30,8 @@ table_item_style='QTreeWidget, QTreeView{font-size:12pt; color:black}'
 RPIO.wait_for_interrupts(threaded=True)
 RPIO.setwarnings(False)
 	
-gpio_b_list=[4,0,17,22]
-gpio_e_list=[25,1,18,23]
+gpio_b_list=[4,17,22,9]
+gpio_e_list=[14,18,23,25]
 
 
 class MainGui(QtGui.QWidget):
@@ -75,7 +70,7 @@ class MainGui(QtGui.QWidget):
 
 		#ranking table
 		self.tree_widget= QtGui.QTreeWidget(self)
-		self.tree_widget. setHeaderLabels(['Ranking','Team Number','Time (s)'])
+		self.tree_widget. setHeaderLabels(['Ranking','Team Number','Time (s)','Del'])
 		self.tree_widget.setFixedWidth(800)
 		self.tree_widget.setFixedHeight(500)
 		self.tree_widget.move(screen.width()/2-400,400)
@@ -83,12 +78,15 @@ class MainGui(QtGui.QWidget):
 		self.tree_widget.header().setResizeMode(0,QtGui.QHeaderView.Fixed)
 		self.tree_widget.setColumnWidth(1,200)
 		self.tree_widget.header().setResizeMode(1,QtGui.QHeaderView.Fixed)
-		#self.tree_widget.setColumnWidth(2,200)
+		self.tree_widget.setColumnWidth(2,350)
 		self.tree_widget.header().setResizeMode(2,QtGui.QHeaderView.Fixed)
+		self.tree_widget.setColumnWidth(3,10)
+		self.tree_widget.header().setResizeMode(3,QtGui.QHeaderView.Fixed)
 		
 		self.tree_widget.header().setDefaultAlignment(QtCore.Qt.AlignCenter) #alingment of header tags
 		self.tree_widget.header().setStyleSheet(table_header_style)
 		self.tree_widget.setStyleSheet(table_item_style)
+					
 		#self.tree_widget.setSortingEnabled(True) 
 		#self.tree_widget.sortItems(2,QtCore.Qt.AscendingOrder)
 
@@ -98,19 +96,41 @@ class MainGui(QtGui.QWidget):
 		fdata=open('/home/pi/Desktop/thermocup/data/temp.txt','r')
      		for row in fdata:
 			aux=row.strip('\n').split(',')
-			new_item=QtGui.QTreeWidgetItem(self.tree_widget)
-			new_item.setData(0,QtCore.Qt.DisplayRole,int(aux[0]))
-			new_item.setData(1,QtCore.Qt.DisplayRole,int(aux[1]))
-			new_item.setData(2,QtCore.Qt.DisplayRole,float(aux[2]))
+			if not aux[0]=='':	
+				new_item=QtGui.QTreeWidgetItem(self.tree_widget)
+				new_item.setData(0,QtCore.Qt.DisplayRole,int(aux[0]))
+				new_item.setData(1,QtCore.Qt.DisplayRole,int(aux[1]))
+				new_item.setData(2,QtCore.Qt.DisplayRole,float(aux[2]))
+				new_item.setTextAlignment(0,4)
+				new_item.setTextAlignment(1,4)
+				new_item.setTextAlignment(2,4)
+				new_item.setCheckState(3,QtCore.Qt.Unchecked)
+			else:
+				new_sub_item=QtGui.QTreeWidgetItem(new_item)
+				new_sub_item.setData(1,QtCore.Qt.DisplayRole,int(aux[1]))
+				new_sub_item.setData(2,QtCore.Qt.DisplayRole,float(aux[2]))
+				new_sub_item.setTextAlignment(0,4)
+				new_sub_item.setTextAlignment(1,4)
+				new_sub_item.setTextAlignment(2,4)
+				new_sub_item.setCheckState(3,QtCore.Qt.Unchecked)
 
 		fdata.close()
-		#sys.exit()
-
 		#self.tree_widget.itemDoubleClicked.connect(self.edit_tree_widget)      
-	  
+	 	self.tree_widget.itemChanged.connect(self.clikedDel) 
             #self.setStyleSheet("QWidget { background-color:white }") #set background
 		self.showFullScreen() #show fullscreen
 
+	def clikedDel(self,item,column):
+		reply = QtGui.QMessageBox.question(self,'Message',"Are you sure you want to delete?", QtGui.QMessageBox.Yes|QtGui.QMessageBox.No,QtGui.QMessageBox.No)
+		if reply == QtGui.QMessageBox.Yes:
+			index=self.tree_widget.indexOfTopLevelItem(item)
+			if index==-1:
+				item.parent().removeChild(item)
+		    	else:
+				self.tree_widget.takeTopLevelItem(index)
+	    	else:
+			item.setCheckState(3,QtCore.Qt.Unchecked)
+			return
 
 	#edit the table
 	#def edit_tree_widget(self,item, index):
@@ -171,7 +191,7 @@ class Track():
 		print tag_id
 		if self.rfid_enable==True:
 			self.tag_id=tag_id	
-			self.track_clk.start(30000)
+			self.track_clk.start(10000)
 			self.rfid_label.setText("%s"%tag_id)
 			self.rfid_enable=False
 			self.timer_enable=True
@@ -194,7 +214,8 @@ class Track():
 		if self.timer_running==True: 
 			RPIO.del_interrupt_callback(self.gpio_e)
 			self.timer_clk.stop()
-			self.track_clk.start(8000)			
+			self.timer_enable=False
+			self.track_clk.start(5000)			
 		
 	#get and set ellapsed time     
 	def setTimerClk(self):
@@ -205,6 +226,7 @@ class Track():
 		if self.timer_running==True:
 			RPIO.del_interrupt_callback(self.gpio_e)
 			self.timer_clk.stop()
+		self.sortTree(reset=True)
 		self.rfid_label.setText('')	
 		self.timer_label.setText('0:000')	
 		self.rfid_enable=True
@@ -214,42 +236,61 @@ class Track():
 #disable track and if timer was running kill's interrupt
 	def disableTrack(self):
 		self.track_clk.stop()
-		if self.timer_running==False:
-			  RPIO.del_interrupt_callback(self.gpio_b)
+		if self.timer_running==False and self.timer_enable==True:
+			RPIO.del_interrupt_callback(self.gpio_b)
+		else:
+			self.sortTree(reset=False)	
 		self.rfid_label.setText('')	
 		self.timer_label.setText('0:000')	
-		self.sortTree()	
-		self.rfid_enable=True
-		self.timer_enable=False
 		self.timer_running=False
-##################################################################################
+		self.rfid_enable=True
+################################################################################
+	def sortTree(self,reset):
+		if reset==False:
+			self.float_timer=float("%d.%03d"%(self.t_lap.seconds,self.t_lap.microseconds/1000))
+		else:
+			self.float_timer=float("inf")
 
-
-	def sortTree(self):
-		self.float_timer=float("%d.%03d"%(self.t_lap.seconds,self.t_lap.microseconds/1000))
 		match_item=self.gui_data.tree_widget.findItems(self.tag_id,QtCore.Qt.MatchExactly,1)
-		
+		self.gui_data.tree_widget.blockSignals(True)
 		fdata=open('/home/pi/Desktop/thermocup/data/temp.txt','w')
 		if len(match_item)==0:
 			new_item=QtGui.QTreeWidgetItem(self.gui_data.tree_widget)
 			new_item.setData(1,QtCore.Qt.DisplayRole,self.tag_id)
 			new_item.setData(2,QtCore.Qt.DisplayRole,self.float_timer)
-			self.gui_data.tree_widget.sortItems(2,0)
-			for i in range(0,self.gui_data.tree_widget.topLevelItemCount()):
-				aux=self.gui_data.tree_widget.topLevelItem(i)		
-				aux.setData(0,QtCore.Qt.DisplayRole,i+1)
-				fdata.write("%d,%d,%.03f\n"%(int(aux.text(0)),int(aux.text(1)),float(aux.text(2))))
-		elif self.float_timer<float(match_item[0].text(2)):
-     #             new_sub_item=QtGui.QTreeWidgetItem(match_item[0])
-			#new_sub_item.setData(1,QtCore.QtDisplayRole,float(match_item[0].text(1)))
-			#new_sub_item.setData(2,QtCore.QtDisplayRole,float(match_item[0].text(2)))
+			new_item.setTextAlignment(0,4)
+			new_item.setTextAlignment(1,4)
+			new_item.setTextAlignment(2,4)
+			new_item.setCheckState(3,QtCore.Qt.Unchecked)
+		elif self.float_timer<=float(match_item[0].text(2)):
+			new_sub_item=QtGui.QTreeWidgetItem(match_item[0])
+			new_sub_item.setData(1,QtCore.Qt.DisplayRole,float(match_item[0].text(1)))
+			new_sub_item.setData(2,QtCore.Qt.DisplayRole,float(match_item[0].text(2)))
 			match_item[0].setData(2,QtCore.Qt.DisplayRole,self.float_timer)
-			self.gui_data.tree_widget.sortItems(2,0)
-			for i in range(0,self.gui_data.tree_widget.topLevelItemCount()):
-				aux=self.gui_data.tree_widget.topLevelItem(i)		
-				aux.setData(0,QtCore.Qt.DisplayRole,i+1)
-				fdata.write("%d,%d,%.03f\n"%(int(aux.text(0)),int(aux.text(1)),float(aux.text(2))))
+			new_sub_item.setTextAlignment(0,4)
+			new_sub_item.setTextAlignment(1,4)
+			new_sub_item.setTextAlignment(2,4)
+			new_sub_item.setCheckState(3,QtCore.Qt.Unchecked)
+		elif self.float_timer>float(match_item[0].text(2)):
+			new_sub_item=QtGui.QTreeWidgetItem(match_item[0])
+			new_sub_item.setData(1,QtCore.Qt.DisplayRole,self.tag_id)
+			new_sub_item.setData(2,QtCore.Qt.DisplayRole,self.float_timer)
+			new_sub_item.setTextAlignment(0,4)
+			new_sub_item.setTextAlignment(1,4)
+			new_sub_item.setTextAlignment(2,4)
+			new_sub_item.setCheckState(3,QtCore.Qt.Unchecked)
+		
+		self.gui_data.tree_widget.sortItems(2,0)
+		print "saving to file"
+		for i in range(0,self.gui_data.tree_widget.topLevelItemCount()):
+			aux=self.gui_data.tree_widget.topLevelItem(i)		
+			aux.setData(0,QtCore.Qt.DisplayRole,i+1)
+			fdata.write("%d,%d,%.03f\n"%(int(aux.text(0)),int(aux.text(1)),float(aux.text(2))))
+			for j in range(0,aux.childCount()):
+				fdata.write(",%d,%.03f\n"%(int(aux.child(j).text(1)),float(aux.child(j).text(2))))
+
 		fdata.close() 
+		self.gui_data.tree_widget.blockSignals(False)
 
 
 ############################  SERIAL THREAD  ####################################
