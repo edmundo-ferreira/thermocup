@@ -21,20 +21,21 @@ fdic.close()
 logging.basicConfig(filename='/home/pi/Desktop/thermocup/debug.log',filemode='w',format="%(levelname)s|%(asctime)-15s|%(message)s",level=logging.WARNING)
 
 title='ThermoCup 2013'
-title_style='QLabel { font-size: 60pt; color:gray;}'
-timer_style='QLabel {font-size:40pt; color:red;}'
-timer_style_invalid='QLabel {font-size:40pt; color:gray;}'
-timer_style_valid='QLabel {font-size:40pt; color:green;}'
-rfid_style='QLabel {font-size:25pt; color:blue;}'
-rfid_style_invalid='QLabel {font-size:25pt; color:gray;}'
-table_header_style='QHeaderView {font-size: 13pt;  background-color:gray;}'
-table_item_style='QTreeWidget, QTreeView{font-size:12pt; color:black}'
+title_style='QLabel { font-size: 35pt; color:gray;}'
+track_style='QLabel { font-size: 23pt; color:gray;}'
+timer_style='QLabel {font-size:28pt; color:red;}'
+timer_style_invalid='QLabel {font-size:28pt; color:gray;}'
+rfid_style='QLabel {font-size:22pt; color:blue;}'
+rfid_style_invalid='QLabel {font-size:22pt; color:gray;}'
+table_header_style='QHeaderView {font-size: 16pt;}'
+table_item_style='QTreeWidget, QTreeView{font-size:14pt; color:black}'
 
 RPIO.wait_for_interrupts(threaded=True)
 RPIO.setwarnings(False)
 	
 gpio_b_list=[4,17,22,9]
 gpio_e_list=[14,18,23,25]
+
 
 class MainGui(QtGui.QWidget):
 	def __init__(self,parent=None):
@@ -47,7 +48,7 @@ class MainGui(QtGui.QWidget):
 		self.reader_list=list()
 		self.reader_list.append(SerialReader(self,'/dev/ttyACM%s'%0))
 		self.reader_list.append(SerialReader(self,'/dev/ttyACM%s'%1))
-		#self.reader_list.append(SerialReader(self,'/dev/ttyACM%s'%2))
+		self.reader_list.append(SerialReader(self,'/dev/ttyACM%s'%2))
 		self.reader_list.append(SerialReader(self,'/dev/ttyUSB%s'%0))
 
 	
@@ -59,27 +60,28 @@ class MainGui(QtGui.QWidget):
 		#title label
 		self.title= QtGui.QLabel(title, self)
 		self.title.setStyleSheet(title_style)
-		self.title.setFixedWidth(700)
-		self.title.setAlignment(QtCore.Qt.AlignRight)
-		self.title.move(screen.width()/2-350,30)
+		self.title.setFixedWidth(600)
+		self.title.move(screen.width()/2-300,10)
+		self.title.setAlignment(QtCore.Qt.AlignCenter)
 
-		##ist_logo
-		#ist_logo = QtGui.QLabel(self)
-		#ist_logo.setPixmap( QtGui.QPixmap("ist_logo.png").scaled(280,150, QtCore.Qt.KeepAspectRatio))
-		#ist_logo.move(30,30)
+
+		#ist_logo
+		ist_logo = QtGui.QLabel(self)
+		ist_logo.setPixmap( QtGui.QPixmap("ist_logo.png").scaled(280*0.82,150*0.82, QtCore.Qt.KeepAspectRatio))
 	 
- 		##cienciaviva_logo
-		#cienciaviva_logo= QtGui.QLabel(self)
-		#cienciaviva_logo.setPixmap( QtGui.QPixmap("cienciaviva_logo.tif").scaled(200,160, QtCore.Qt.KeepAspectRatio))
-		#cienciaviva_logo.move(screen.width()-250,30)
+ 		#cienciaviva_logo
+		cienciaviva_logo= QtGui.QLabel(self)
+		cienciaviva_logo.setPixmap(QtGui.QPixmap("cienciaviva_logo.tif").scaled(200*0.85,160*0.85, QtCore.Qt.KeepAspectRatio))
+		cienciaviva_logo.move(screen.width()-200*0.9,0)
+
 
 		#ranking table
 		self.tree_widget= QtGui.QTreeWidget(self)
 		self.tree_heder=self.tree_widget.header()
 		self.tree_widget. setHeaderLabels(['Ranking','Team Number','Time (s)','Del'])
 		self.tree_widget.setFixedWidth(1000)
-		self.tree_widget.setFixedHeight(600)
-		self.tree_widget.move(screen.width()/2-500,380)
+		self.tree_widget.setFixedHeight(650)
+		self.tree_widget.move(screen.width()/2-500,260)
 		self.tree_widget.setColumnWidth(0,250)
 		self.tree_widget.header().setResizeMode(0,QtGui.QHeaderView.Fixed)
 		self.tree_widget.setColumnWidth(1,250)
@@ -124,11 +126,11 @@ class MainGui(QtGui.QWidget):
 
 		fdata.close()
 		
-		self.delete_event=QtGui.QShortcut(self)
-		self.delete_event.setKey("Del")
-		self.delete_event.activated.connect(self.deleteItemsSelection)
-
-	      #self.setStyleSheet("QWidget { background-color:white }") #set background
+		delete_event=QtGui.QShortcut(self)
+		delete_event.setKey("Del")
+		delete_event.activated.connect(self.deleteItemsSelection)
+		
+		
 		self.showFullScreen() #show fullscreen
 
 
@@ -191,7 +193,7 @@ class Track():
 		self.gui_data=gui_data	
 		self.gpio_b=gpio_b
 		self.gpio_e=gpio_e
-		self.track_id=track_id
+		self.track_id=int(track_id)
 		#timer control flags 
 		self.timer_running=False
 		self.timer_enable=False
@@ -199,30 +201,37 @@ class Track():
 		#timer clock
 		self.timer_clk= QtCore.QTimer()
 		self.timer_clk.timeout.connect(self.setTimerClk)
-	
+
 		#track clock
 		self.track_clk= QtCore.QTimer()
 		self.track_clk.timeout.connect(self.disableTrack)
+		
+		#track title
+		track_label=QtGui.QLabel("Pista %d"%(self.track_id),self.gui_data)
+		track_label.setStyleSheet(track_style)
+		track_label.setFixedWidth(200)
+		track_label.setAlignment(QtCore.Qt.AlignRight)
+		track_label.move(pos_x+100,120)
 
 		#timer label		
 		self.timer_label=QtGui.QLabel('0:000',self.gui_data)
 		self.timer_label.setStyleSheet(timer_style)
 		self.timer_label.setFixedWidth(300)
 		self.timer_label.setAlignment(QtCore.Qt.AlignRight)
-		self.timer_label.move(pos_x,220)
+		self.timer_label.move(pos_x,150)
 		#rfid label
 		self.rfid_label=QtGui.QLabel('',self.gui_data)
 		self.rfid_label.setStyleSheet(rfid_style)
-		self.rfid_label.setFixedWidth(300)
+		self.rfid_label.setFixedWidth(200)
 		self.rfid_label.setAlignment(QtCore.Qt.AlignCenter)
-		self.rfid_label.move(pos_x+60,300)
+		self.rfid_label.move(pos_x+150,200)
 	
 	def enableTrack(self,tag_id):
 		if self.rfid_enable==True:
 			print "tagid %s enabled track %s"%(tag_id,self.track_id)
 			self.rfid_enable=False
 			self.tag_id=tag_id	
-			self.track_clk.start(10000)
+			self.track_clk.start(20000)
 			self.rfid_label.setText("%s"%tag_id)
 			self.timer_enable=True
 			RPIO.add_interrupt_callback(self.gpio_b,self.startClk,edge='rising',pull_up_down=RPIO.PUD_UP,debounce_timeout_ms=None)
@@ -265,6 +274,7 @@ class Track():
 				clean=True
 			if self.timer_running==False and self.timer_enable==False: 
 				print "tagid %s completed successfull run on track %s disabling it"%(self.tag_id,self.track_id)
+				self.gui_data.update()
 				time.sleep(5)
 				self.sortTree(reset=False)	
 				clean=True
@@ -273,6 +283,7 @@ class Track():
 				print "%s is canceling after run, tagid %s and disabling track %s"%(in_number,self.tag_id,self.track_id)
 				self.rfid_label.setStyleSheet(rfid_style_invalid)
 				self.timer_label.setStyleSheet(timer_style_invalid)	
+				self.gui_data.update()
 				time.sleep(5)	
 				self.sortTree(reset=True)
 				clean=True
@@ -287,6 +298,7 @@ class Track():
 				self.rfid_label.setStyleSheet(rfid_style_invalid)
 				self.timer_label.setStyleSheet(timer_style_invalid)	
 				print "%s is canceling during run, tagid %s and disabling track %s"%(in_number,self.tag_id,self.track_id)
+				self.gui_data.update()
 				time.sleep(5)	
 				self.sortTree(reset=True)	
 				clean=True
@@ -297,6 +309,8 @@ class Track():
 			self.rfid_label.setText('')	
 			self.timer_label.setText('0:000')	
 			self.rfid_enable=True
+
+		self.gui_data.update()
 
 
 	def sortTree(self,reset):
@@ -370,6 +384,7 @@ class SerialReader(QtCore.QThread):
 				in_channel, in_tag =self.ser.readline().strip('\r\n').strip(' ').split('#')
 				in_number=my_dic.get(in_tag)
 				in_channel=int(in_channel)-1	
+				print in_tag
 				if not in_number==None and in_channel<len(self.gui_data.track_list):
 					if in_number=='MASTER':
 						  self.gui_data.track_list[in_channel].disableTrack(in_number)					

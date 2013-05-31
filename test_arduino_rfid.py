@@ -12,7 +12,7 @@ csv_reader=csv.reader(f)
 
 
 w_flag=False
-
+card_number=133
 
 for row in csv_reader:
 	try:
@@ -22,10 +22,8 @@ for row in csv_reader:
 
 print my_dic
 
-f.seek(0)
 
 if w_flag==True:
-	card_number=87
 	con_flag=False
 	try:
 		while True:
