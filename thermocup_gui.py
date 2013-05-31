@@ -64,7 +64,6 @@ class MainGui(QtGui.QWidget):
 		self.title.move(screen.width()/2-300,10)
 		self.title.setAlignment(QtCore.Qt.AlignCenter)
 
-
 		#ist_logo
 		ist_logo = QtGui.QLabel(self)
 		ist_logo.setPixmap( QtGui.QPixmap("ist_logo.png").scaled(280*0.82,150*0.82, QtCore.Qt.KeepAspectRatio))
@@ -77,8 +76,7 @@ class MainGui(QtGui.QWidget):
 
 		#ranking table
 		self.tree_widget= QtGui.QTreeWidget(self)
-		self.tree_heder=self.tree_widget.header()
-		self.tree_widget. setHeaderLabels(['Ranking','Team Number','Time (s)','Del'])
+		self.tree_widget.setHeaderLabels(['Ranking','Team Number','Time (s)','Del'])
 		self.tree_widget.setFixedWidth(1000)
 		self.tree_widget.setFixedHeight(650)
 		self.tree_widget.move(screen.width()/2-500,260)
@@ -93,13 +91,6 @@ class MainGui(QtGui.QWidget):
 		self.tree_widget.header().setDefaultAlignment(QtCore.Qt.AlignCenter) #alingment of header tags
 		self.tree_widget.header().setStyleSheet(table_header_style)
 		self.tree_widget.setStyleSheet(table_item_style)
-	
-		#self.tree_header.setClickable(True)
-		
-		#self.tree_header.itemCliconnect(self.foda)
-		
-		#self.tree_widget.setSortingEnabled(True) 
-		#self.tree_widget.sortItems(2,QtCore.Qt.AscendingOrder)
 		self.tree_widget.setAlternatingRowColors(True);
 		
 		
@@ -126,50 +117,49 @@ class MainGui(QtGui.QWidget):
 
 		fdata.close()
 		
-		delete_event=QtGui.QShortcut(self)
-		delete_event.setKey("Del")
-		delete_event.activated.connect(self.deleteItemsSelection)
-		
+		self.tree_widget.header().setClickable(True)
+		self.tree_widget.header().sectionClicked.connect(self.deleteItemsSelection)	
 		
 		self.showFullScreen() #show fullscreen
 
 
-	def foda(self):
+	def foda(self,index):
 		print "welcome to foda"
+		print index
 
-	def deleteItemsSelection(self):
-		reply = QtGui.QMessageBox.question(self,'Message',"Are you sure to quit?", QtGui.QMessageBox.Yes|QtGui.QMessageBox.No,QtGui.QMessageBox.No)
-		if reply == QtGui.QMessageBox.Yes:
-			i=0
-			count_items=self.tree_widget.topLevelItemCount()
-			while i<count_items:
-				aux=self.tree_widget.topLevelItem(i)		
+	def deleteItemsSelection(self,header_index):
+		if header_index==3:
+			reply = QtGui.QMessageBox.question(self,'Message',"Are you sure to quit?", QtGui.QMessageBox.Yes|QtGui.QMessageBox.No,QtGui.QMessageBox.No)
+			if reply == QtGui.QMessageBox.Yes:
+				i=0
+				count_items=self.tree_widget.topLevelItemCount()
+				while i<count_items:
+					aux=self.tree_widget.topLevelItem(i)		
 
-				count_childs=aux.childCount()
-				j=0
-				while j<count_childs:
-					if aux.child(j).checkState(3)==QtCore.Qt.Checked:
-						print "removing child %d of item %d from table"%(j,i)	
-						aux.removeChild(aux.child(j))
-						count_childs=aux.childCount()	
-						j=j-1
-					j=j+1			
+					count_childs=aux.childCount()
+					j=0
+					while j<count_childs:
+						if aux.child(j).checkState(3)==QtCore.Qt.Checked:
+							print "removing child %d of item %d from table"%(j,i)	
+							aux.removeChild(aux.child(j))
+							count_childs=aux.childCount()	
+							j=j-1
+						j=j+1			
 
+					if aux.checkState(3)==QtCore.Qt.Checked:
+						if aux.childCount()==0:
+							print "item has no child"
+							print "removing item %d from table"%i
+							self.tree_widget.takeTopLevelItem(i)
+							count_items=self.tree_widget.topLevelItemCount()
+							i=i-1
+						else:
+							print "this item is a parent have mercy on his sole, kill a child instead"
+							aux.setData(2,QtCore.Qt.DisplayRole,float(aux.child(0).text(2)))
+							aux.setCheckState(3,QtCore.Qt.Unchecked)
+							aux.removeChild(aux.child(0))
 
-				if aux.checkState(3)==QtCore.Qt.Checked:
-					if aux.childCount()==0:
-						print "item has no child"
-						print "removing item %d from table"%i
-						self.tree_widget.takeTopLevelItem(i)
-						count_items=self.tree_widget.topLevelItemCount()
-						i=i-1
-					else:
-						print "this item is a parent have mercy on his sole, kill a child instead"
-						aux.setData(2,QtCore.Qt.DisplayRole,float(aux.child(0).text(2)))
-						aux.setCheckState(3,QtCore.Qt.Unchecked)
-						aux.removeChild(aux.child(0))
-
-				i=i+1
+					i=i+1
 	
 
 	#close safeguard
